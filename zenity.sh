@@ -1,55 +1,75 @@
 #!/bin/bash
 
-# Menampilkan dialog Zenity untuk memilih aplikasi
-application=$(zenity --list --title="Pilih Aplikasi" --column="Aplikasi" "telnet" "ssh" "http" "ftp" --width=300 --height=300 --radiolist --separator=":" --text="Pilih aplikasi yang ingin diatur:")
+# Function to add iptables rule
+add_rule() {
+    protocol=$1
+    action=$2
+    port=$3
+    iptables -A INPUT -p $protocol --dport $port -j $action
+}
 
-# Memeriksa apakah pengguna memilih aplikasi
-if [ -z "$application" ]; then
-    zenity --error --text="Aplikasi tidak dipilih. Program berhenti."
+# Function to display error message
+display_error() {
+    zenity --error --text="$1"
     exit 1
-fi
+}
 
-# Menampilkan dialog Zenity untuk memilih proses
-process=$(zenity --list --title="Pilih Proses" --column="Proses" "Reject" "Drop" "Accept" --width=300 --height=300 --radiolist --separator=":" --text="Pilih proses untuk aplikasi $application:")
+# Display dialog to choose application
+application=$(zenity --list \
+                   --title="Choose Application" \
+                   --text="Select an application to configure:" \
+                   --column="Application" telnet ssh http ftp \
+                   --width=300 \
+                   --height=250)
 
-# Memeriksa apakah pengguna memilih proses
-if [ -z "$process" ]; then
-    zenity --error --text="Proses tidak dipilih. Program berhenti."
-    exit 1
-fi
+# Display dialog to choose action
+action=$(zenity --list \
+               --title="Choose Action" \
+               --text="Select an action for $application:" \
+               --column="Action" Reject Drop Accept \
+               --width=300 \
+               --height=250)
 
-# Menjalankan iptables sesuai pilihan pengguna
-case "$process" in
-    "Reject")
-        sudo iptables -A INPUT -p tcp --dport $(get_port $application) -j REJECT
+# Determine protocol and port based on application
+case $application in
+    "telnet")
+        protocol="tcp"
+        port="23"
         ;;
-    "Drop")
-        sudo iptables -A INPUT -p tcp --dport $(get_port $application) -j DROP
+    "ssh")
+        protocol="tcp"
+        port="22"
         ;;
-    "Accept")
-        sudo iptables -A INPUT -p tcp --dport $(get_port $application) -j ACCEPT
+    "http")
+        protocol="tcp"
+        port="80"
+        ;;
+    "ftp")
+        protocol="tcp"
+        port="21"
+        ;;
+    *)
+        display_error "Invalid application!"
         ;;
 esac
 
-# Menampilkan pesan berhasil
-zenity --info --text="Aplikasi $application telah diatur untuk proses $process pada iptables."
+# Determine action
+case $action in
+    "Reject")
+        action="REJECT"
+        ;;
+    "Drop")
+        action="DROP"
+        ;;
+    "Accept")
+        action="ACCEPT"
+        ;;
+    *)
+        display_error "Invalid action!"
+        ;;
+esac
 
-# Fungsi untuk mendapatkan port berdasarkan aplikasi
-get_port() {
-    case "$1" in
-        "telnet")
-            echo "23"
-            ;;
-        "ssh")
-            echo "22"
-            ;;
-        "http")
-            echo "80"
-            ;;
-        "ftp")
-            echo "21"
-            ;;
-    esac
-}
+# Add iptables rule
+add_rule $protocol $action $port
 
-exit 0
+zenity --info --text="iptables rule for $application has been configured with action $action on port $port."
